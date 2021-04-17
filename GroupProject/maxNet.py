@@ -15,7 +15,7 @@ X['line'] = numpy.ones((N,1))
 X0 = tf.constant( X, dtype=tf.float32 ) ## tensorflow format
 Y0 = tf.constant( Y, dtype=tf.float32 )
 
-unit = 40
+unit = 60
 ## trainable matrices
 W_H = tf.Variable( tf.random.uniform( [unit,unit+len(X.columns)], dtype=tf.float32 ), trainable=True )
 W_Y = tf.Variable( tf.random.uniform( [len(Y.columns),unit], dtype=tf.float32 ), trainable=True )
@@ -33,11 +33,11 @@ def cost(): ## cross entropy cost
 
 # opt = tf.keras.optimizers.SGD( 0.01 ) ## specify SGD optimizer
 opt = tf.keras.optimizers.Adam(
-    learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=False,
+    learning_rate=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=False,
     name='Adam'
 )
 
-for epoch in range( 100 ): ## for each epoch
+for epoch in range( 150 ): ## for each epoch
     print("Epoch " + str(epoch))
     opt.minimize( cost, var_list=[W_H,W_Y] ) ## do fwd and backprop
 
