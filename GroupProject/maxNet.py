@@ -1,53 +1,68 @@
 import sys
 import numpy
 import pandas
-import time
+import tensorflow as tf
 
 
-def logistic( Wx ):
-    return numpy.exp( Wx ).div ( numpy.ones(len(Wx)) @ numpy.exp( Wx ) )
-
-
-YX = pandas.read_csv( sys.argv[1] )           #read data
-columns = YX[YX.columns[0]].unique()
-
-Y = pandas.get_dummies( YX[YX.columns[13]] )   #transform data
-X = YX[YX.columns[0:13]]
+YX = pandas.read_csv( './Data/heart-b.csv' ) ## read in data
+Y = pandas.get_dummies( YX[YX.columns[13]] ) ## transform data
+X = YX[YX.columns[:13]]
+             ## transform data
+# X = YX[YX.columns[0:13]]
 N = len(YX)
 X['line'] = numpy.ones((N,1))
 
-I = len(Y.columns)  ## output layer
-J = 5               ## hidden layer
-K = len(X.columns)  ## input layer
-L = 2               ## number of levels
+X0 = tf.constant( X, dtype=tf.float32 ) ## tensorflow format
+Y0 = tf.constant( Y, dtype=tf.float32 )
 
-W = [None, pandas.DataFrame(numpy.random.rand(J,K), range(J),  X.columns),
-      pandas.DataFrame(numpy.random.rand(I,J), Y.columns, range(J))]
+unit = 40
+## trainable matrices
+W_H = tf.Variable( tf.random.uniform( [unit,unit+len(X.columns)], dtype=tf.float32 ), trainable=True )
+W_Y = tf.Variable( tf.random.uniform( [len(Y.columns),unit], dtype=tf.float32 ), trainable=True )
+def estimate(): ## calculate estimate
+    Yhat = [] ## store output in list
+    h = tf.Variable( numpy.zeros((unit,1)), dtype=tf.float32 ) ## initial hidden state
+    for t in range(len(YX)): ## iterate over input
+        xT = tf.reshape( X0[t], (len(X.columns),1) ) ## update hidden state
+        h = tf.nn.softmax(W_H @ tf.concat( [h,xT], axis=0 ), axis=0 )
+        Yhat.append( tf.reshape( tf.nn.softmax(W_Y @ h, axis=0), (len(Y.columns),) ) )
+    return tf.stack(Yhat) ## output as matrix
 
-f = {}
-df_dWf = {}
+def cost(): ## cross entropy cost
+    return - 1/N * tf.reduce_sum( tf.math.log( tf.reduce_sum( Y0 * estimate(), axis=1 ) ) )
 
-fx = {}
-dC_dWf = {}
+# opt = tf.keras.optimizers.SGD( 0.01 ) ## specify SGD optimizer
+opt = tf.keras.optimizers.Adam(
+    learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, amsgrad=False,
+    name='Adam'
+)
 
-f[0] = lambda x : x
-f[1] = lambda x: numpy.maximum( W[1] @ f[0](x), 0)
-f[2] = lambda x : logistic( W[2] @ f[1](x) )
+for epoch in range( 100 ): ## for each epoch
+    print("Epoch " + str(epoch))
+    opt.minimize( cost, var_list=[W_H,W_Y] ) ## do fwd and backprop
 
-for i in range(2):
-    print("Epoch {}".format(i))
-    for n in range(N):
-        for l in range(L + 1):
-            fx[l] = f[l](X.iloc[[n]].T)
-            if l == 1: df_dWf[l] = numpy.diagflat(numpy.maximum(numpy.sign(W[l] @ fx[l -1]), 0).values )
-            if l == 2: df_dWf[l] = ( ( numpy.eye(len(W[l]))
-                                       - logistic(W[l] @ fx[l-1]) @ numpy.ones((1, len(W[l]))))
-                                      @ numpy.diagflat( logistic( W[l] @ fx[l-1]).values ))
-        for l in range(L,0,-1):
-            if l==L: dC_dWf[l] = ( logistic( W[l] @ fx[l-1] ) - Y.iloc[[n]].T).T
-            else: dC_dWf[l] = dC_dWf[l+1] @ W[l+1] @ df_dWf[l]
-            W[l] = W[l] - (1/N) * dC_dWf[l].T @ fx[l-1].T
+print( W_H ) ## output models
+print( W_Y )
+est = estimate()
+c = cost()
+# print( est) ## output estimate
+# print( c ) ## output final cost
 
-for n in range(len(YX)):
-    print(f[2](X.iloc[[n]].T))
-    #print(f[L](X.iloc[[n]].T))
+est_round = numpy.round(est)
+print( est_round) ## output estimate
+print( c ) ## output final cost
+# def yVal():
+#     y_val = []
+#     for i in est_round:
+#         if est_round[0].any() > est_round[1].any(): 
+#             y_val.append(0)
+#         else: 
+#             y_val.append(1)
+#     return y_val
+
+# y_val = yVal()
+# Y = YX[YX.columns[13]].to_frame() 
+# count = 0
+# for i in range(N):
+#     if y_val[i] == Y[i]: count = 1+count
+        
